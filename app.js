@@ -657,9 +657,10 @@ async function handleLivePosition(position) {
 
   if (!state.hasLiveFix) {
     state.hasLiveFix = true;
-    setRouteStatus("Route wordt afgestemd op je GPS", "live");
-    els.navigationInfo.textContent = "Route wordt afgestemd op je huidige locatie...";
-    await syncRouteToLiveStart(coords);
+    setRouteStatus("Live GPS actief", "live");
+    els.navigationInfo.textContent = "Live GPS actief";
+    setGpsLocked(true);
+    syncRouteToLiveStart(coords);
   }
 
   updateUserPosition(coords, position.coords.accuracy);
