@@ -604,6 +604,19 @@ select:focus {
   text-align: left;
 }
 
+.location-source {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 54px;
+  margin-bottom: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #111816;
+}
+
 .route-option.is-selected {
   border-color: rgba(69, 214, 182, 0.72);
   background: rgba(69, 214, 182, 0.12);

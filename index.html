@@ -58,11 +58,13 @@
           <div class="section-title">
             <h2>Route</h2>
           </div>
-          <label class="address-field">
-            Vertrekpunt
-            <input id="originInput" type="text" value="" placeholder="Typ je vertrekadres" autocomplete="street-address" />
-            <div class="suggestions" id="originSuggestions" role="listbox" aria-label="Suggesties vertrekpunt"></div>
-          </label>
+          <div class="location-source">
+            <div>
+              <p class="contact-name">Vertrekpunt</p>
+              <p class="contact-meta" id="originStatus">Huidige locatie wordt opgehaald...</p>
+            </div>
+            <span class="level-badge">GPS</span>
+          </div>
           <label class="address-field">
             Bestemming
             <input id="destinationInput" type="text" value="" placeholder="Typ je bestemming, bv. Station Brussel-Zuid" autocomplete="street-address" />

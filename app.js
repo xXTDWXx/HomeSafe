@@ -42,6 +42,7 @@ const state = {
 
 const els = {
   originInput: document.querySelector("#originInput"),
+  originStatus: document.querySelector("#originStatus"),
   destinationInput: document.querySelector("#destinationInput"),
   originSuggestions: document.querySelector("#originSuggestions"),
   destinationSuggestions: document.querySelector("#destinationSuggestions"),
@@ -286,8 +287,47 @@ function getSelectedCoordinates(field) {
 }
 
 async function resolveLocation(field) {
-  const input = field === "origin" ? els.originInput : els.destinationInput;
+  if (field === "origin") {
+    if (state.lastPosition) return state.lastPosition;
+    const livePosition = await requestCurrentPosition();
+    return livePosition;
+  }
+  const input = els.destinationInput;
   return getSelectedCoordinates(field) || geocode(input.value);
+}
+
+function requestCurrentPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("GPS is niet beschikbaar op dit toestel."));
+      return;
+    }
+    if (els.originStatus) els.originStatus.textContent = "Huidige locatie wordt opgehaald...";
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coords = [position.coords.latitude, position.coords.longitude];
+        setCurrentLocation(coords, position.coords.accuracy);
+        resolve(coords);
+      },
+      () => reject(new Error("Geef locatietoegang om je route vanaf je huidige locatie te starten.")),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 }
+    );
+  });
+}
+
+function setCurrentLocation(coords, accuracy = 0) {
+  state.lastPosition = coords;
+  state.selectedPlaces.origin = {
+    label: "Mijn huidige locatie",
+    lat: coords[0],
+    lon: coords[1],
+  };
+  if (els.originInput) els.originInput.value = "Mijn huidige locatie";
+  if (els.originStatus) {
+    els.originStatus.textContent = accuracy
+      ? `Huidige locatie actief · nauwkeurigheid ${Math.round(accuracy)} m`
+      : "Huidige locatie actief";
+  }
 }
 
 async function fetchOsrmRoutes(coordinates, alternatives = "false") {
@@ -747,12 +787,7 @@ function locateUser() {
   navigator.geolocation.getCurrentPosition(
     (position) => {
       const coords = [position.coords.latitude, position.coords.longitude];
-      els.originInput.value = `${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}`;
-      state.selectedPlaces.origin = {
-        label: "Mijn huidige locatie",
-        lat: coords[0],
-        lon: coords[1],
-      };
+      setCurrentLocation(coords, position.coords.accuracy);
       closeSuggestions("origin");
       map.setView(coords, 16);
       L.circle(coords, {
@@ -769,20 +804,14 @@ function locateUser() {
 }
 
 function autoLocateStart() {
-  if (state.hasAutoLocated || state.selectedPlaces.origin || els.originInput.value.trim()) return;
+  if (state.hasAutoLocated || state.selectedPlaces.origin) return;
   if (!navigator.geolocation) return;
   state.hasAutoLocated = true;
 
   navigator.geolocation.getCurrentPosition(
     (position) => {
       const coords = [position.coords.latitude, position.coords.longitude];
-      state.lastPosition = coords;
-      state.selectedPlaces.origin = {
-        label: "Mijn huidige locatie",
-        lat: coords[0],
-        lon: coords[1],
-      };
-      els.originInput.value = "Mijn huidige locatie";
+      setCurrentLocation(coords, position.coords.accuracy);
       map.setView(coords, 16);
       L.circle(coords, {
         radius: position.coords.accuracy || 35,
@@ -793,7 +822,8 @@ function autoLocateStart() {
       setRouteStatus("Huidige locatie als vertrekpunt");
     },
     () => {
-      setRouteStatus("Vul vertrekpunt en bestemming in");
+      if (els.originStatus) els.originStatus.textContent = "Locatietoegang nodig voor vertrekpunt";
+      setRouteStatus("Locatietoegang nodig voor vertrekpunt", "alert");
     },
     { enableHighAccuracy: true, timeout: 9000, maximumAge: 30000 }
   );
@@ -913,9 +943,10 @@ function selectSuggestion(field, location) {
 function closeSuggestions(field) {
   const container = field === "origin" ? els.originSuggestions : els.destinationSuggestions;
   const input = field === "origin" ? els.originInput : els.destinationInput;
+  if (!container) return;
   container.classList.remove("is-open");
   container.innerHTML = "";
-  input.closest(".address-field")?.classList.remove("has-suggestions");
+  input?.closest(".address-field")?.classList.remove("has-suggestions");
 }
 
 function closeAllSuggestions() {
@@ -988,7 +1019,6 @@ function bindEvents() {
   els.navButtons.forEach((button) => {
     button.addEventListener("click", () => switchTab(button.dataset.tab));
   });
-  bindAutocomplete("origin", els.originInput, els.originSuggestions);
   bindAutocomplete("destination", els.destinationInput, els.destinationSuggestions);
   document.addEventListener("click", closeAllSuggestions);
 }
@@ -998,7 +1028,7 @@ renderSettings();
 renderContacts();
 renderMockContactOptions();
 bindEvents();
-setRouteStatus("Vul vertrekpunt en bestemming in");
+setRouteStatus("Huidige locatie wordt opgehaald");
 autoLocateStart();
 
 function haversineMeters(a, b) {
