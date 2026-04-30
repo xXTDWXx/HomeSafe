@@ -12,6 +12,8 @@ const state = {
   hasDeviation: false,
   watchId: null,
   hasLiveFix: false,
+  isSyncingStartRoute: false,
+  deviationGraceUntil: 0,
   safetyCountdownTimer: null,
   safetySecondsLeft: 0,
   lastPosition: null,
@@ -504,6 +506,8 @@ function startTrip() {
   state.tripActive = true;
   state.hasDeviation = false;
   state.hasLiveFix = false;
+  state.isSyncingStartRoute = false;
+  state.deviationGraceUntil = Date.now() + 20000;
   els.tripPill.textContent = "Live";
   els.tripPill.classList.add("active");
   els.startTripButton.textContent = "Stop rit";
@@ -525,16 +529,20 @@ function startTrip() {
   );
 }
 
-function handleLivePosition(position) {
+async function handleLivePosition(position) {
   const coords = [position.coords.latitude, position.coords.longitude];
   state.lastPosition = coords;
-  updateUserPosition(coords, position.coords.accuracy);
+
   if (!state.hasLiveFix) {
     state.hasLiveFix = true;
-    map.setView(coords, 17, { animate: true });
-  } else {
-    map.panTo(coords, { animate: true, duration: 0.35 });
+    setRouteStatus("Route wordt afgestemd op je GPS", "live");
+    els.navigationInfo.textContent = "Route wordt afgestemd op je huidige locatie...";
+    await syncRouteToLiveStart(coords);
   }
+
+  updateUserPosition(coords, position.coords.accuracy);
+  updateRouteLayerStyles();
+  map.setView(coords, Math.max(map.getZoom(), 17), { animate: true });
 
   const distanceFromRoute = distanceToRoute(coords, state.route.coordinates);
   const distanceToDestination = haversineMeters(coords, state.route.destination);
@@ -549,11 +557,53 @@ function handleLivePosition(position) {
     return;
   }
 
-  if (distanceFromRoute > state.deviationThresholdMeters && !state.hasDeviation) {
+  if (
+    !state.isSyncingStartRoute
+    && Date.now() > state.deviationGraceUntil
+    && distanceFromRoute > state.deviationThresholdMeters
+    && !state.hasDeviation
+  ) {
     state.hasDeviation = true;
     setRouteStatus("Afwijking gedetecteerd", "alert");
     addAlert("Je bent afgeweken van je route", `Bevestig binnen ${state.safetyCheckSeconds} seconden dat je veilig bent.`, "warning", "deviation");
     startSafetyCountdown(state.safetyCheckSeconds);
+  }
+}
+
+async function syncRouteToLiveStart(coords) {
+  if (!state.route || state.isSyncingStartRoute) return;
+  const distanceFromPlannedRoute = distanceToRoute(coords, state.route.coordinates);
+  const distanceFromOrigin = haversineMeters(coords, state.route.origin);
+
+  if (distanceFromPlannedRoute <= state.deviationThresholdMeters || distanceFromOrigin <= state.deviationThresholdMeters) {
+    return;
+  }
+
+  state.isSyncingStartRoute = true;
+  try {
+    const destination = state.route.destination;
+    const routes = await getRoutes(coords, destination);
+    state.routes = routes.map((route, index) => ({
+      id: index,
+      origin: coords,
+      destination,
+      coordinates: route.geometry.coordinates.map(([lon, lat]) => [lat, lon]),
+      distance: route.distance,
+      duration: route.duration,
+      via: getRouteViaLabel(route),
+    }));
+    state.selectedRouteIndex = 0;
+    state.route = state.routes[0];
+    state.deviationGraceUntil = Date.now() + 5000;
+    drawRoutes();
+    renderRouteOptions();
+    setRouteStatus("Route volgt je live locatie", "live");
+  } catch (error) {
+    console.error(error);
+    setRouteStatus("Route behouden", "live");
+    els.navigationInfo.textContent = "Kon route niet automatisch aanpassen. Ik volg wel je GPS.";
+  } finally {
+    state.isSyncingStartRoute = false;
   }
 }
 
@@ -585,6 +635,12 @@ function updateUserPosition(position, accuracy = 0) {
         : "Live locatie delen staat ruimer ingesteld."
     );
   }
+  if (state.routeLayer) {
+    state.routeLayer.bringToFront();
+  }
+  if (state.userMarker) {
+    state.userMarker.bringToFront();
+  }
 }
 
 function completeTrip() {
@@ -602,6 +658,8 @@ function stopTrip(sendAlert = true) {
   state.tripActive = false;
   state.hasDeviation = false;
   state.hasLiveFix = false;
+  state.isSyncingStartRoute = false;
+  state.deviationGraceUntil = 0;
   els.tripPill.textContent = "Niet actief";
   els.tripPill.classList.remove("active");
   els.startTripButton.textContent = "Vertrekken";
