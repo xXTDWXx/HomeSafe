@@ -797,6 +797,14 @@ function handleLocationError(error) {
   const secureHint = window.isSecureContext
     ? "Controleer of Safari locatietoegang heeft."
     : "iPhone Safari laat GPS meestal alleen toe via HTTPS. Routeberekening werkt wel, live GPS vraagt straks een app-build of HTTPS-link.";
+
+  if (state.hasLiveFix || state.lastPosition) {
+    setRouteStatus("Live GPS actief", "live");
+    setGpsLocked(true);
+    els.navigationInfo.textContent = "Live locatie actief. Nieuwe GPS-updates komen zodra je toestel ze doorgeeft.";
+    return;
+  }
+
   addAlert("Live locatie kon niet starten", `${error.message || "Geen locatietoegang."} ${secureHint}`, "warning", "safe");
   setRouteStatus("Live GPS niet beschikbaar", "alert");
   els.navigationInfo.textContent = `GPS niet beschikbaar. ${secureHint}`;
