@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ThuisVeilig</title>
+    <meta name="theme-color" content="#0e1311" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ThuisVeilig" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="preconnect" href="https://tile.openstreetmap.org" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIINfQ5pPTyXAvkM19fiTIfn7ey0lE8PBbM="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="phone-app">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">ThuisVeilig</p>
+          <h1>Laat je mensen meekijken tot je thuis bent.</h1>
+        </div>
+        <span class="live-pill" id="tripPill">Niet actief</span>
+      </header>
+
+      <section class="tab-screen is-active" id="routeTab" data-tab-panel="route" aria-label="Route maken">
+        <section class="map-panel" aria-label="Kaart en route">
+          <div id="map"></div>
+          <div class="route-status" id="routeStatus">
+            <span class="status-dot"></span>
+            <span>Kies je route om te starten</span>
+          </div>
+          <div class="map-actions">
+            <button class="icon-button" id="locateButton" title="Gebruik huidige locatie">LOC</button>
+            <button class="icon-button" id="fitRouteButton" title="Toon volledige route">FIT</button>
+          </div>
+          <div class="navigation-controls" id="navigationControls">
+            <div class="navigation-actions">
+              <button class="danger-button" id="panicButton">Onveilig</button>
+              <button class="safe-button" id="safeButton">Ik ben veilig</button>
+            </div>
+            <div class="navigation-hidden">
+              <span id="safetyTimer">Geen timer</span>
+              <span id="navigationInfo">GPS wordt gestart...</span>
+              <button class="ghost-button" id="simulateDeviationButton">Test afwijking</button>
+              <button class="ghost-button" id="stopTripButton">Stop route</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-section route-card">
+          <div class="section-title">
+            <h2>Route</h2>
+          </div>
+          <label class="address-field">
+            Vertrekpunt
+            <input id="originInput" type="text" value="" placeholder="Typ je vertrekadres" autocomplete="street-address" />
+            <div class="suggestions" id="originSuggestions" role="listbox" aria-label="Suggesties vertrekpunt"></div>
+          </label>
+          <label class="address-field">
+            Bestemming
+            <input id="destinationInput" type="text" value="" placeholder="Typ je bestemming, bv. Station Brussel-Zuid" autocomplete="street-address" />
+            <div class="suggestions" id="destinationSuggestions" role="listbox" aria-label="Suggesties bestemming"></div>
+          </label>
+          <button class="primary-button" id="planRouteButton">Route berekenen</button>
+          <div class="route-metrics" id="routeMetrics">
+            <span>Afstand: -</span>
+            <span>Te voet: -</span>
+          </div>
+        </section>
+
+        <section class="panel-section route-options-card" id="routeOptionsCard" hidden>
+          <div class="section-title">
+            <h2>Kies je route</h2>
+            <span class="level-badge" id="routeOptionsCount">0 opties</span>
+          </div>
+          <div class="route-options" id="routeOptions"></div>
+          <button class="primary-button" id="startTripButton">Vertrekken</button>
+        </section>
+      </section>
+
+      <section class="tab-screen" id="contactsTab" data-tab-panel="contacts" aria-label="Contacten">
+        <section class="panel-section screen-card">
+          <div class="section-title">
+            <h2>Trusted contacts</h2>
+            <button class="primary-mini-button" id="addContactButton">Uit contacten</button>
+          </div>
+          <p class="screen-note">
+            Kies wie je route mag zien, wie je live locatie krijgt, en wie altijd een noodmelding ontvangt.
+          </p>
+          <div class="contact-list" id="contactList"></div>
+        </section>
+      </section>
+
+      <section class="tab-screen" id="settingsTab" data-tab-panel="settings" aria-label="Instellingen">
+        <section class="panel-section screen-card">
+          <div class="section-title">
+            <h2>Instellingen</h2>
+            <span class="level-badge">Prototype</span>
+          </div>
+          <div class="settings-list">
+            <article class="setting-row">
+              <div>
+                <p class="contact-name">Afwijkingsmelding</p>
+                <p class="contact-meta">Waarschuw contacten als je verder dan 85 meter van je route bent.</p>
+              </div>
+              <label class="setting-control">
+                <span id="deviationValue">85 m</span>
+                <input id="deviationInput" type="range" min="30" max="250" step="5" value="85" />
+              </label>
+            </article>
+            <article class="setting-row">
+              <div>
+                <p class="contact-name">Safety check</p>
+                <p class="contact-meta">Na een afwijking krijg je 60 seconden om “Ik ben veilig” te drukken.</p>
+              </div>
+              <label class="setting-control">
+                <span id="safetyCheckValue">60 s</span>
+                <input id="safetyCheckInput" type="range" min="15" max="180" step="5" value="60" />
+              </label>
+            </article>
+            <article class="setting-row">
+              <div>
+                <p class="contact-name">Privacy</p>
+                <p class="contact-meta">Live locatie wordt alleen gedeeld tijdens een actieve rit.</p>
+              </div>
+              <label class="switch-control">
+                <input id="privacyLiveOnlyInput" type="checkbox" checked />
+                <span></span>
+              </label>
+            </article>
+          </div>
+        </section>
+      </section>
+
+      <nav class="bottom-nav" aria-label="Hoofdnavigatie">
+        <button class="nav-button is-active" data-tab="route" aria-current="page">
+          <span class="nav-icon">R</span>
+          Route maken
+        </button>
+        <button class="nav-button" data-tab="contacts">
+          <span class="nav-icon">C</span>
+          Contacten
+        </button>
+        <button class="nav-button" data-tab="settings">
+          <span class="nav-icon">I</span>
+          Instellingen
+        </button>
+      </nav>
+    </main>
+
+    <dialog id="contactDialog">
+      <form method="dialog" class="dialog-card">
+        <div class="section-title">
+          <h2>Contact toevoegen</h2>
+          <button class="icon-button" value="cancel" title="Sluiten">X</button>
+        </div>
+        <p class="dialog-note">
+          In de mobiele app koppelen we dit aan de contacten van de telefoon. In dit prototype kies je uit voorbeeldcontacten.
+        </p>
+        <label>
+          Contact
+          <select id="contactSelect"></select>
+        </label>
+        <label>
+          Niveau
+          <select id="contactLevelSelect">
+            <option value="friend">Vriend(in) - route en afwijkingsmelding</option>
+            <option value="best">Beste vriend(in) - route, live locatie en meldingen</option>
+            <option value="family">Familie - altijd noodmelding en check-ins</option>
+            <option value="guardian">Ouder/voogd - altijd escalatie bij nood</option>
+          </select>
+        </label>
+        <button class="primary-button" id="confirmContactButton" value="default">Toevoegen</button>
+      </form>
+    </dialog>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

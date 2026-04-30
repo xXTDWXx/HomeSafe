@@ -1,0 +1,10 @@
+{
+  "name": "ThuisVeilig",
+  "short_name": "ThuisVeilig",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0e1311",
+  "theme_color": "#0e1311",
+  "description": "Route delen met trusted contacts en veiligheidsmeldingen.",
+  "icons": []
+}
