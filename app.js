@@ -18,6 +18,7 @@ const state = {
   safetyCountdownTimer: null,
   safetySecondsLeft: 0,
   lastPosition: null,
+  lastAccuracy: 0,
   hasAutoLocated: false,
   headingDegrees: 0,
   orientationHandler: null,
@@ -333,6 +334,7 @@ function requestCurrentPosition() {
 
 function setCurrentLocation(coords, accuracy = 0) {
   state.lastPosition = coords;
+  state.lastAccuracy = accuracy || 0;
   state.selectedPlaces.origin = {
     label: "Mijn huidige locatie",
     lat: coords[0],
@@ -594,7 +596,7 @@ function fitRoute() {
   }
 }
 
-function startTrip() {
+async function startTrip() {
   if (!state.route) {
     addAlert("Plan eerst een route", "Kies je vertrekpunt en bestemming voordat je vertrekt.", "warning", "safe");
     return;
@@ -632,15 +634,19 @@ function startTrip() {
   addAlert("Rit gestart", "Je route is actief. Je toestel vraagt nu locatietoegang.", "safe", "safe");
   startOrientationTracking();
 
-  if (state.lastPosition) {
-    handleLivePosition({
+  try {
+    const startCoords = state.lastPosition || await requestCurrentPosition();
+    await handleLivePosition({
       coords: {
-        latitude: state.lastPosition[0],
-        longitude: state.lastPosition[1],
-        accuracy: 0,
+        latitude: startCoords[0],
+        longitude: startCoords[1],
+        accuracy: state.lastAccuracy || 0,
         heading: Number.NaN,
       },
     });
+  } catch (error) {
+    setRouteStatus("Live GPS niet beschikbaar", "alert");
+    els.navigationInfo.textContent = error.message || "Locatie kon niet worden opgehaald.";
   }
 
   state.watchId = navigator.geolocation.watchPosition(
@@ -739,10 +745,18 @@ async function syncRouteToLiveStart(coords) {
 
 function updateNavigationInstruction(coords) {
   if (!els.instructionPrimary || !els.instructionSecondary || !els.instructionArrow) return;
-  if (!coords || !state.route?.steps?.length) {
+  if (!coords) {
     els.instructionArrow.textContent = "↑";
     els.instructionPrimary.textContent = "GPS wordt gestart";
     els.instructionSecondary.textContent = "Wacht op je huidige locatie";
+    return;
+  }
+
+  if (!state.route?.steps?.length) {
+    const destinationMeters = Math.round(haversineMeters(coords, state.route.destination));
+    els.instructionArrow.textContent = "↑";
+    els.instructionPrimary.textContent = `${formatInstructionDistance(destinationMeters)} volg de route`;
+    els.instructionSecondary.textContent = "Blijf richting bestemming wandelen";
     return;
   }
 
