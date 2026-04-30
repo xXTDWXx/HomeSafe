@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Home Safe</title>
-    <meta name="theme-color" content="#0e1311" />
+    <meta name="theme-color" content="#050807" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="ThuisVeilig" />
@@ -17,14 +17,14 @@
       integrity="sha256-p4NxAoJBhIINfQ5pPTyXAvkM19fiTIfn7ey0lE8PBbM="
       crossorigin=""
     />
-    <link rel="stylesheet" href="./styles.css?v=20260430-7" />
+    <link rel="stylesheet" href="./styles.css?v=20260430-8" />
   </head>
   <body>
     <main class="phone-app">
       <header class="app-header">
         <div>
           <p class="eyebrow">ThuisVeilig</p>
-          <h1>Laat je mensen meekijken tot je thuis bent.</h1>
+          <h1>Veilig onderweg met je kring dichtbij.</h1>
         </div>
         <span class="live-pill" id="tripPill">Niet actief</span>
       </header>
@@ -50,7 +50,7 @@
           </div>
           <button class="nav-stop-button" id="stopTripButton">Stop route</button>
           <div class="navigation-instruction" id="navigationInstruction">
-            <span class="instruction-arrow" id="instructionArrow">↑</span>
+            <span class="instruction-arrow" id="instructionArrow">&#8593;</span>
             <div>
               <p class="instruction-primary" id="instructionPrimary">GPS wordt gestart</p>
               <p class="instruction-secondary" id="instructionSecondary">Wacht op je huidige locatie</p>
@@ -135,7 +135,7 @@
             <article class="setting-row">
               <div>
                 <p class="contact-name">Safety check</p>
-                <p class="contact-meta">Na een afwijking krijg je 60 seconden om “Ik ben veilig” te drukken.</p>
+                <p class="contact-meta">Na een afwijking krijg je 60 seconden om "Ik ben veilig" te drukken.</p>
               </div>
               <label class="setting-control">
                 <span id="safetyCheckValue">60 s</span>
@@ -158,15 +158,15 @@
 
       <nav class="bottom-nav" aria-label="Hoofdnavigatie">
         <button class="nav-button is-active" data-tab="route" aria-current="page">
-          <span class="nav-icon">R</span>
+          <span class="nav-icon">A</span>
           Route maken
         </button>
         <button class="nav-button" data-tab="contacts">
-          <span class="nav-icon">C</span>
+          <span class="nav-icon">B</span>
           Contacten
         </button>
         <button class="nav-button" data-tab="settings">
-          <span class="nav-icon">I</span>
+          <span class="nav-icon">C</span>
           Instellingen
         </button>
       </nav>
@@ -203,6 +203,6 @@
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
-    <script src="./app.js?v=20260430-7"></script>
+    <script src="./app.js?v=20260430-8"></script>
   </body>
 </html>
