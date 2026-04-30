@@ -632,6 +632,17 @@ function startTrip() {
   addAlert("Rit gestart", "Je route is actief. Je toestel vraagt nu locatietoegang.", "safe", "safe");
   startOrientationTracking();
 
+  if (state.lastPosition) {
+    handleLivePosition({
+      coords: {
+        latitude: state.lastPosition[0],
+        longitude: state.lastPosition[1],
+        accuracy: 0,
+        heading: Number.NaN,
+      },
+    });
+  }
+
   state.watchId = navigator.geolocation.watchPosition(
     handleLivePosition,
     handleLocationError,
