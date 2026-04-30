@@ -286,7 +286,7 @@ body.is-navigating .route-status {
   position: fixed;
   left: 50%;
   right: auto;
-  bottom: calc(0px + env(safe-area-inset-bottom));
+  bottom: calc(14px + env(safe-area-inset-bottom));
   z-index: 5000;
   display: none;
   width: min(92vw, 390px);
@@ -297,12 +297,33 @@ body.is-navigating .navigation-controls {
   display: block;
   left: 50%;
   right: auto;
-  bottom: calc(0px + env(safe-area-inset-bottom));
+  bottom: calc(14px + env(safe-area-inset-bottom));
   padding: 0;
   border: 0;
   background: transparent;
   box-shadow: none;
   backdrop-filter: none;
+}
+
+.nav-stop-button {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top));
+  right: 12px;
+  display: none;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(10, 15, 13, 0.84);
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 900;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(16px);
+}
+
+body.is-navigating .nav-stop-button {
+  display: block;
 }
 
 body.is-navigating .map-actions {
