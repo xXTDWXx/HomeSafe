@@ -14,6 +14,7 @@ const state = {
   hasLiveFix: false,
   isSyncingStartRoute: false,
   deviationGraceUntil: 0,
+  currentStepIndex: 0,
   safetyCountdownTimer: null,
   safetySecondsLeft: 0,
   lastPosition: null,
@@ -63,6 +64,9 @@ const els = {
   routeOptionsCount: document.querySelector("#routeOptionsCount"),
   routeTab: document.querySelector("#routeTab"),
   navigationInfo: document.querySelector("#navigationInfo"),
+  instructionArrow: document.querySelector("#instructionArrow"),
+  instructionPrimary: document.querySelector("#instructionPrimary"),
+  instructionSecondary: document.querySelector("#instructionSecondary"),
   routeMetrics: document.querySelector("#routeMetrics"),
   routeStatus: document.querySelector("#routeStatus"),
   tripPill: document.querySelector("#tripPill"),
@@ -371,6 +375,59 @@ function getRouteViaLabel(route) {
   return `via ${names.slice(0, 3).join(", ")}`;
 }
 
+function routeToSteps(route) {
+  const steps = [];
+  route.legs?.forEach((leg) => {
+    leg.steps?.forEach((step) => {
+      const [lon, lat] = step.maneuver?.location || [];
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      steps.push({
+        location: [lat, lon],
+        name: step.name?.trim() || "",
+        instruction: buildStepInstruction(step),
+        arrow: stepArrow(step.maneuver?.modifier, step.maneuver?.type),
+      });
+    });
+  });
+  return steps;
+}
+
+function buildStepInstruction(step) {
+  const modifier = step.maneuver?.modifier || "";
+  const type = step.maneuver?.type || "";
+  const street = step.name?.trim();
+  const direction = {
+    right: "rechtsaf",
+    left: "linksaf",
+    straight: "rechtdoor",
+    "slight right": "licht rechts",
+    "slight left": "licht links",
+    "sharp right": "scherp rechts",
+    "sharp left": "scherp links",
+    uturn: "keer om",
+  }[modifier] || "verder";
+
+  if (type === "arrive") return "Bestemming bereikt";
+  if (type === "depart") return street ? `vertrek via ${street}` : "vertrek";
+  if (type === "roundabout") return street ? `neem de rotonde naar ${street}` : "neem de rotonde";
+  return street ? `${direction} naar ${street}` : direction;
+}
+
+function stepArrow(modifier = "straight", type = "") {
+  if (type === "arrive") return "●";
+  if (type === "roundabout") return "↻";
+  return {
+    right: "→",
+    left: "←",
+    straight: "↑",
+    "slight right": "↗",
+    "slight left": "↖",
+    "sharp right": "↱",
+    "sharp left": "↰",
+    uturn: "↺",
+  }[modifier] || "↑";
+}
+
 function makeViaPoints(origin, destination) {
   const midLat = (origin[0] + destination[0]) / 2;
   const midLon = (origin[1] + destination[1]) / 2;
@@ -429,6 +486,7 @@ async function planRoute() {
       distance: route.distance,
       duration: route.duration,
       via: getRouteViaLabel(route),
+      steps: routeToSteps(route),
     }));
     state.selectedRouteIndex = 0;
     state.route = state.routes[0];
@@ -479,6 +537,7 @@ function drawRoutes() {
 function selectRoute(index) {
   state.selectedRouteIndex = index;
   state.route = state.routes[index];
+  state.currentStepIndex = 0;
   updateRouteLayerStyles();
   renderRouteOptions();
   updateSelectedRouteMetrics();
@@ -555,6 +614,7 @@ function startTrip() {
   state.hasLiveFix = false;
   state.isSyncingStartRoute = false;
   state.deviationGraceUntil = Date.now() + 20000;
+  state.currentStepIndex = 0;
   setGpsLocked(false);
   els.tripPill.textContent = "Live";
   els.tripPill.classList.add("active");
@@ -568,6 +628,7 @@ function startTrip() {
   }, 120);
   setRouteStatus("GPS wordt gestart", "live");
   els.navigationInfo.textContent = "GPS wordt gestart...";
+  updateNavigationInstruction(null);
   addAlert("Rit gestart", "Je route is actief. Je toestel vraagt nu locatietoegang.", "safe", "safe");
   startOrientationTracking();
 
@@ -594,10 +655,11 @@ async function handleLivePosition(position) {
   updateHeadingFromPosition(position, previousPosition, coords);
   updateUserHeading();
   updateRouteLayerStyles();
-  map.setView(coords, Math.max(map.getZoom(), 17), { animate: true });
 
   const distanceFromRoute = distanceToRoute(coords, state.route.coordinates);
   const distanceToDestination = haversineMeters(coords, state.route.destination);
+  updateNavigationInstruction(coords);
+  focusNavigationView(coords);
   els.routeMetrics.innerHTML = `
     <span>Afstand route: ${Math.round(distanceFromRoute)} m</span>
     <span>Nog: ${Math.round(distanceToDestination)} m</span>
@@ -645,9 +707,11 @@ async function syncRouteToLiveStart(coords) {
       distance: route.distance,
       duration: route.duration,
       via: getRouteViaLabel(route),
+      steps: routeToSteps(route),
     }));
     state.selectedRouteIndex = 0;
     state.route = state.routes[0];
+    state.currentStepIndex = 0;
     state.deviationGraceUntil = Date.now() + 5000;
     drawRoutes();
     renderRouteOptions();
@@ -659,6 +723,48 @@ async function syncRouteToLiveStart(coords) {
   } finally {
     state.isSyncingStartRoute = false;
   }
+}
+
+function updateNavigationInstruction(coords) {
+  if (!els.instructionPrimary || !els.instructionSecondary || !els.instructionArrow) return;
+  if (!coords || !state.route?.steps?.length) {
+    els.instructionArrow.textContent = "↑";
+    els.instructionPrimary.textContent = "GPS wordt gestart";
+    els.instructionSecondary.textContent = "Wacht op je huidige locatie";
+    return;
+  }
+
+  while (
+    state.currentStepIndex < state.route.steps.length - 1
+    && haversineMeters(coords, state.route.steps[state.currentStepIndex].location) < 18
+  ) {
+    state.currentStepIndex += 1;
+  }
+
+  const step = state.route.steps[state.currentStepIndex];
+  const meters = Math.round(haversineMeters(coords, step.location));
+  els.instructionArrow.textContent = step.arrow;
+  els.instructionPrimary.textContent = `${formatInstructionDistance(meters)} ${step.instruction}`;
+  els.instructionSecondary.textContent = step.name ? `Volg ${step.name}` : "Blijf de route volgen";
+}
+
+function formatInstructionDistance(meters) {
+  if (meters >= 1000) return `over ${(meters / 1000).toFixed(1).replace(".", ",")} km`;
+  return `over ${Math.max(0, meters)} m`;
+}
+
+function focusNavigationView(coords) {
+  const step = state.route?.steps?.[state.currentStepIndex];
+  if (step && haversineMeters(coords, step.location) > 25) {
+    map.fitBounds(L.latLngBounds([coords, step.location]), {
+      paddingTopLeft: [48, 128],
+      paddingBottomRight: [48, 132],
+      maxZoom: 18,
+      animate: true,
+    });
+    return;
+  }
+  map.setView(coords, 18, { animate: true });
 }
 
 function handleLocationError(error) {
@@ -774,6 +880,7 @@ function stopTrip(sendAlert = true) {
   state.hasLiveFix = false;
   state.isSyncingStartRoute = false;
   state.deviationGraceUntil = 0;
+  state.currentStepIndex = 0;
   setGpsLocked(false);
   stopOrientationTracking();
   els.tripPill.textContent = "Niet actief";
