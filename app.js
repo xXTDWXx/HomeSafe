@@ -836,8 +836,21 @@ function updateUserPosition(position, accuracy = 0) {
     state.routeLayer.bringToFront();
   }
   if (state.userMarker) {
-    state.userMarker.bringToFront();
+    bringMarkerToFront(state.userMarker);
   }
+}
+
+function bringMarkerToFront(marker) {
+  if (typeof marker.bringToFront === "function") {
+    marker.bringToFront();
+    return;
+  }
+
+  const markerElement = marker.getElement?.();
+  const markerPane = markerElement?.parentElement;
+  if (!markerElement || !markerPane) return;
+  markerElement.style.zIndex = "1000";
+  markerPane.appendChild(markerElement);
 }
 
 async function startOrientationTracking() {
