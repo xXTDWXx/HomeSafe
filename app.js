@@ -18,6 +18,8 @@ const state = {
   safetySecondsLeft: 0,
   lastPosition: null,
   hasAutoLocated: false,
+  headingDegrees: 0,
+  orientationHandler: null,
   deviationThresholdMeters: 85,
   safetyCheckSeconds: 60,
   arrivalThresholdMeters: 45,
@@ -164,12 +166,22 @@ const markerIcons = {
     iconAnchor: [17, 38],
     popupAnchor: [0, -36],
   }),
+  user: L.divIcon({
+    className: "user-location-marker",
+    html: '<span class="user-location-heading"></span><span class="user-location-dot"></span>',
+    iconSize: [48, 48],
+    iconAnchor: [24, 24],
+  }),
 };
 
 function setRouteStatus(message, type = "idle") {
   els.routeStatus.classList.toggle("is-live", type === "live");
   els.routeStatus.classList.toggle("is-alert", type === "alert");
   els.routeStatus.querySelector("span:last-child").textContent = message;
+}
+
+function setGpsLocked(isLocked) {
+  document.body.classList.toggle("gps-locked", isLocked);
 }
 
 function getAlertRecipients(kind) {
@@ -457,13 +469,7 @@ function drawRoutes() {
   });
   state.originMarker = L.marker(state.route.origin, { icon: markerIcons.origin }).addTo(map).bindPopup("Vertrekpunt");
   state.destinationMarker = L.marker(state.route.destination, { icon: markerIcons.destination }).addTo(map).bindPopup("Bestemming");
-  state.userMarker = L.circleMarker(state.route.origin, {
-    radius: 9,
-    color: "#ffffff",
-    weight: 3,
-    fillColor: "#cc5a2e",
-    fillOpacity: 1,
-  }).addTo(map).bindPopup("Jouw locatie");
+  state.userMarker = L.marker(state.route.origin, { icon: markerIcons.user }).addTo(map).bindPopup("Jouw locatie");
 
   fitRoute();
   updateSelectedRouteMetrics();
@@ -549,6 +555,7 @@ function startTrip() {
   state.hasLiveFix = false;
   state.isSyncingStartRoute = false;
   state.deviationGraceUntil = Date.now() + 20000;
+  setGpsLocked(false);
   els.tripPill.textContent = "Live";
   els.tripPill.classList.add("active");
   els.startTripButton.textContent = "Stop rit";
@@ -562,6 +569,7 @@ function startTrip() {
   setRouteStatus("GPS wordt gestart", "live");
   els.navigationInfo.textContent = "GPS wordt gestart...";
   addAlert("Rit gestart", "Je route is actief. Je toestel vraagt nu locatietoegang.", "safe", "safe");
+  startOrientationTracking();
 
   state.watchId = navigator.geolocation.watchPosition(
     handleLivePosition,
@@ -572,6 +580,7 @@ function startTrip() {
 
 async function handleLivePosition(position) {
   const coords = [position.coords.latitude, position.coords.longitude];
+  const previousPosition = state.lastPosition;
   state.lastPosition = coords;
 
   if (!state.hasLiveFix) {
@@ -582,6 +591,8 @@ async function handleLivePosition(position) {
   }
 
   updateUserPosition(coords, position.coords.accuracy);
+  updateHeadingFromPosition(position, previousPosition, coords);
+  updateUserHeading();
   updateRouteLayerStyles();
   map.setView(coords, Math.max(map.getZoom(), 17), { animate: true });
 
@@ -592,6 +603,8 @@ async function handleLivePosition(position) {
     <span>Nog: ${Math.round(distanceToDestination)} m</span>
   `;
   els.navigationInfo.textContent = `${Math.round(distanceToDestination)} m tot bestemming · nauwkeurigheid ${Math.round(position.coords.accuracy || 0)} m`;
+  setRouteStatus("Live GPS actief", "live");
+  setGpsLocked(true);
 
   if (distanceToDestination <= state.arrivalThresholdMeters) {
     completeTrip();
@@ -684,6 +697,66 @@ function updateUserPosition(position, accuracy = 0) {
   }
 }
 
+async function startOrientationTracking() {
+  const orientationEvent = window.DeviceOrientationEvent;
+  if (!orientationEvent) return;
+
+  try {
+    if (typeof orientationEvent.requestPermission === "function") {
+      const permission = await orientationEvent.requestPermission();
+      if (permission !== "granted") return;
+    }
+  } catch {
+    return;
+  }
+
+  if (state.orientationHandler) {
+    window.removeEventListener("deviceorientation", state.orientationHandler);
+    window.removeEventListener("deviceorientationabsolute", state.orientationHandler);
+  }
+
+  state.orientationHandler = (event) => {
+    const heading = typeof event.webkitCompassHeading === "number"
+      ? event.webkitCompassHeading
+      : typeof event.alpha === "number"
+        ? 360 - event.alpha
+        : null;
+    if (heading === null) return;
+    state.headingDegrees = normalizeDegrees(heading);
+    updateUserHeading();
+  };
+
+  window.addEventListener("deviceorientation", state.orientationHandler, true);
+  window.addEventListener("deviceorientationabsolute", state.orientationHandler, true);
+}
+
+function stopOrientationTracking() {
+  if (!state.orientationHandler) return;
+  window.removeEventListener("deviceorientation", state.orientationHandler);
+  window.removeEventListener("deviceorientationabsolute", state.orientationHandler);
+  state.orientationHandler = null;
+}
+
+function updateHeadingFromPosition(position, previousPosition, currentPosition) {
+  if (typeof position.coords.heading === "number" && !Number.isNaN(position.coords.heading)) {
+    state.headingDegrees = normalizeDegrees(position.coords.heading);
+    return;
+  }
+  if (!previousPosition || haversineMeters(previousPosition, currentPosition) < 2) return;
+  state.headingDegrees = bearingDegrees(previousPosition, currentPosition);
+}
+
+function updateUserHeading() {
+  const markerElement = state.userMarker?.getElement?.();
+  const headingElement = markerElement?.querySelector(".user-location-heading");
+  if (!headingElement) return;
+  headingElement.style.transform = `translate(-50%, -78%) rotate(${state.headingDegrees}deg)`;
+}
+
+function normalizeDegrees(degrees) {
+  return ((degrees % 360) + 360) % 360;
+}
+
 function completeTrip() {
   stopTrip(false);
   state.tripActive = false;
@@ -701,6 +774,8 @@ function stopTrip(sendAlert = true) {
   state.hasLiveFix = false;
   state.isSyncingStartRoute = false;
   state.deviationGraceUntil = 0;
+  setGpsLocked(false);
+  stopOrientationTracking();
   els.tripPill.textContent = "Niet actief";
   els.tripPill.classList.remove("active");
   els.startTripButton.textContent = "Vertrekken";
@@ -1041,6 +1116,18 @@ function haversineMeters(a, b) {
   const value = Math.sin(dLat / 2) ** 2
     + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
   return 2 * radius * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
+}
+
+function bearingDegrees(a, b) {
+  const toRad = (degrees) => degrees * Math.PI / 180;
+  const toDeg = (radians) => radians * 180 / Math.PI;
+  const lat1 = toRad(a[0]);
+  const lat2 = toRad(b[0]);
+  const dLon = toRad(b[1] - a[1]);
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2)
+    - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  return normalizeDegrees(toDeg(Math.atan2(y, x)));
 }
 
 function toXY(point, origin) {
