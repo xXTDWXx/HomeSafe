@@ -83,6 +83,9 @@ const els = {
   safetyCheckInput: document.querySelector("#safetyCheckInput"),
   safetyCheckValue: document.querySelector("#safetyCheckValue"),
   privacyLiveOnlyInput: document.querySelector("#privacyLiveOnlyInput"),
+  permissionPanel: document.querySelector("#permissionPanel"),
+  permissionStatus: document.querySelector("#permissionStatus"),
+  permissionButton: document.querySelector("#permissionButton"),
   navButtons: document.querySelectorAll("[data-tab]"),
   tabPanels: document.querySelectorAll("[data-tab-panel]"),
 };
@@ -839,15 +842,15 @@ function updateUserPosition(position, accuracy = 0) {
 
 async function startOrientationTracking() {
   const orientationEvent = window.DeviceOrientationEvent;
-  if (!orientationEvent) return;
+  if (!orientationEvent) return false;
 
   try {
     if (typeof orientationEvent.requestPermission === "function") {
       const permission = await orientationEvent.requestPermission();
-      if (permission !== "granted") return;
+      if (permission !== "granted") return false;
     }
   } catch {
-    return;
+    return false;
   }
 
   if (state.orientationHandler) {
@@ -868,6 +871,7 @@ async function startOrientationTracking() {
 
   window.addEventListener("deviceorientation", state.orientationHandler, true);
   window.addEventListener("deviceorientationabsolute", state.orientationHandler, true);
+  return true;
 }
 
 function stopOrientationTracking() {
@@ -1045,6 +1049,34 @@ function autoLocateStart() {
   );
 }
 
+async function requestStartupPermissions() {
+  if (!els.permissionPanel || !els.permissionStatus) return;
+  els.permissionStatus.textContent = "Locatie wordt gevraagd...";
+
+  let locationReady = false;
+  let motionReady = false;
+
+  try {
+    await requestCurrentPosition();
+    locationReady = true;
+  } catch (error) {
+    els.permissionStatus.textContent = error.message || "Locatietoegang is nodig om routes te starten.";
+  }
+
+  if (locationReady) {
+    els.permissionStatus.textContent = "Locatie actief. Bewegingsrichting wordt gevraagd...";
+    motionReady = await startOrientationTracking();
+  }
+
+  if (locationReady && motionReady) {
+    els.permissionPanel.classList.add("is-ready");
+    els.permissionStatus.textContent = "Locatie en bewegingsrichting zijn actief.";
+  } else if (locationReady) {
+    els.permissionPanel.classList.add("is-ready");
+    els.permissionStatus.textContent = "Locatie is actief. Bewegingsrichting werkt zodra je browser dit toestaat.";
+  }
+}
+
 function addSelectedContact() {
   const selected = state.mockContacts.find((contact) => contact.phone === els.contactSelect.value);
   if (!selected) return;
@@ -1204,6 +1236,7 @@ function bindEvents() {
   els.locateButton.addEventListener("click", locateUser);
   els.fitRouteButton.addEventListener("click", fitRoute);
   els.stopTripButton.addEventListener("click", () => stopTrip());
+  els.permissionButton?.addEventListener("click", requestStartupPermissions);
   els.clearAlertsButton?.addEventListener("click", () => {
     if (els.alertFeed) els.alertFeed.innerHTML = "";
   });

@@ -17,7 +17,7 @@
       integrity="sha256-p4NxAoJBhIINfQ5pPTyXAvkM19fiTIfn7ey0lE8PBbM="
       crossorigin=""
     />
-    <link rel="stylesheet" href="./styles.css?v=20260430-4" />
+    <link rel="stylesheet" href="./styles.css?v=20260430-5" />
   </head>
   <body>
     <main class="phone-app">
@@ -28,6 +28,14 @@
         </div>
         <span class="live-pill" id="tripPill">Niet actief</span>
       </header>
+
+      <section class="permission-panel" id="permissionPanel">
+        <div>
+          <p class="contact-name">Toestemmingen activeren</p>
+          <p class="contact-meta" id="permissionStatus">Locatie en bewegingsrichting zijn nodig voor live navigatie.</p>
+        </div>
+        <button class="primary-mini-button" id="permissionButton">Activeren</button>
+      </section>
 
       <section class="tab-screen is-active" id="routeTab" data-tab-panel="route" aria-label="Route maken">
         <section class="map-panel" aria-label="Kaart en route">
@@ -195,6 +203,6 @@
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
-    <script src="./app.js?v=20260430-4"></script>
+    <script src="./app.js?v=20260430-5"></script>
   </body>
 </html>
