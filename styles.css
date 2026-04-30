@@ -334,7 +334,7 @@ body.is-navigating .navigation-controls {
   position: fixed;
   top: calc(12px + env(safe-area-inset-top));
   right: 12px;
-  display: none;
+  display: none !important;
   min-height: 38px;
   padding: 8px 12px;
   border: 1px solid var(--line);
@@ -345,10 +345,12 @@ body.is-navigating .navigation-controls {
   font-weight: 900;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(16px);
+  z-index: 9000;
+  pointer-events: auto;
 }
 
 body.is-navigating .nav-stop-button {
-  display: block;
+  display: block !important;
 }
 
 .navigation-instruction {
