@@ -17,6 +17,7 @@ const state = {
   safetyCountdownTimer: null,
   safetySecondsLeft: 0,
   lastPosition: null,
+  hasAutoLocated: false,
   deviationThresholdMeters: 85,
   safetyCheckSeconds: 60,
   arrivalThresholdMeters: 45,
@@ -767,6 +768,37 @@ function locateUser() {
   );
 }
 
+function autoLocateStart() {
+  if (state.hasAutoLocated || state.selectedPlaces.origin || els.originInput.value.trim()) return;
+  if (!navigator.geolocation) return;
+  state.hasAutoLocated = true;
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const coords = [position.coords.latitude, position.coords.longitude];
+      state.lastPosition = coords;
+      state.selectedPlaces.origin = {
+        label: "Mijn huidige locatie",
+        lat: coords[0],
+        lon: coords[1],
+      };
+      els.originInput.value = "Mijn huidige locatie";
+      map.setView(coords, 16);
+      L.circle(coords, {
+        radius: position.coords.accuracy || 35,
+        color: "#187c69",
+        fillColor: "#187c69",
+        fillOpacity: 0.12,
+      }).addTo(map);
+      setRouteStatus("Huidige locatie als vertrekpunt");
+    },
+    () => {
+      setRouteStatus("Vul vertrekpunt en bestemming in");
+    },
+    { enableHighAccuracy: true, timeout: 9000, maximumAge: 30000 }
+  );
+}
+
 function addSelectedContact() {
   const selected = state.mockContacts.find((contact) => contact.phone === els.contactSelect.value);
   if (!selected) return;
@@ -967,6 +999,7 @@ renderContacts();
 renderMockContactOptions();
 bindEvents();
 setRouteStatus("Vul vertrekpunt en bestemming in");
+autoLocateStart();
 
 function haversineMeters(a, b) {
   const radius = 6371000;
